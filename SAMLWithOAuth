@@ -1,0 +1,45 @@
+It is possible to send an OAuth token inside a SAML assertion.
+It will use a defined Access Token Manager, so it can send
+opaque access token or a JWT.
+
+Using Ping Federate, you'll need to create an attribute in 
+SAML assertion to hold the JWT.
+When mapping this attribute you'll choose Expression and 
+insert the OGNL to generate a token
+
+Basic OGNL:
+#attrs = new java.util.HashMap(), 
+attrs.put("attribute1", #this.get("datastore.value1")), 
+attrs.put("attribute2", #this.get("datastore.value2")), 
+#scopes = "admin read_only read_write", 
+#clientID = "OAuthClientID", 
+#accessTokenManagerID = "accessTokenManagerID", 
+#val = @com.pingidentity.sdk.oauth20.AccessTokenIssuer@issueToken(
+    #attrs, 
+    #scopes, 
+    #clientID, 
+    #accessTokenManagerID
+)
+
+
+
+#attrs = new java.util.HashMap(), 
+This declares #attrs as a HashMap that we will add whatever attributes we want in the token
+attrs.put("attribute1", #this.get("datastore.value1")), 
+This will add attribute1 as an attribute, and set the value to value1 from the datastore
+attrs.put("attribute2", #this.get("datastore.value2")),
+This will add attribute2 as an attribute, and set the value to value2 from the datastore
+#scopes = "admin read_only read_write", 
+This will add scopes to the token, it accepts a space delimited list. Can be null.
+#clientID = "OAuthClientID", 
+This is the ID of a predefined Oauth Client. Can be null.
+#accessTokenManagerID = "accessTokenManagerID", 
+This is the ID of a predefined access token manager. Can be null. If this is null, it will use the default for the 
+OAuth Client. If no default, it will use the global default.
+#val = @com.pingidentity.sdk.oauth20.AccessTokenIssuer@issueToken(
+    #attrs, 
+    #scopes, 
+    #clientID, 
+    #accessTokenManagerID
+)
+This creates a string representation of the token and returns it.
