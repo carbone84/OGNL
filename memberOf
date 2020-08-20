@@ -1,0 +1,6 @@
+These have been used with memberOf field of AD
+
+#value = #this.get("datastore.memberOf").toString(),
+#return = #value.matches("CN=commonname,OU=organizationalunit,DC=domaincontroller")?
+            "Authorized":
+            "Unauthorized"
