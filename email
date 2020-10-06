@@ -1,0 +1,10 @@
+drop the @domain.com from email address
+#email = #this.get("email").toString(),
+#name = #email.split("@")[0]
+
+truncate username before the @domain.com only if it is > 20 characters
+#email = #this.get("email").toString(), 
+#name = #email.split("@")[0], 
+#domain = #email.split("@")[1], 
+#return = #name.length() > 20 ? #name.substring(0,20) + "@" + #domain : #this.get("email")
+
