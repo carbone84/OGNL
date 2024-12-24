@@ -1,0 +1,12 @@
+In adapter contract mapping:
+#sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"),
+#sdf.setTimeZone(@java.util.TimeZone@getTimeZone("UTC")),
+#now = new java.util.Date(),
+#nowUTC = #sdf.format(#now)
+
+
+In policy: 
+#sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"),
+#CTS = sdf.parse(#this.get("ad.P1Risk.currentTime")).getTime(),
+#LASTSEEN = sdf.parse(#this.get("ad.P1Risk.lastSeen")).getTime(), 
+#diff = (#CTS - #LASTSEEN), #diff < 86400000 ? true : false
