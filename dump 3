@@ -1,0 +1,314 @@
+OGNL Expressions
+Enabling
+https://documentation.pingidentity.com/pingfederate/pf84/#concept_enablingAndDisablingExpressions.html#concept_enablingAndDisablingExpressions
+Samples
+NBF for OIDC
+#this.get("nbf").toString().equals("nbf")?1000:1000
+*********************************************************************************************************************************************************************************************
+Checks string for granted or admin (case insensitive)
+#this.get("ApplicationAccess")!=null?((#this.get("ApplicationAccess").toString().matches("(?i)granted"))||(#this.get("ApplicationAccess").toString().matches("(?i)admin"))):false
+*********************************************************************************************************************************************************************************************
+Concatenate 2 values
+#this.get("FirstName") + " " +#this.get("LastName")
+*********************************************************************************************************************************************************************************************
+String to lower case
+#this.get("SAML_SUBJECT").toString().toLowerCase()
+*********************************************************************************************************************************************************************************************
+‘Starts with’ check
+#this.get("PUID")!=null?((#this.get("PUID").toString().toUpperCase().startsWith("IAM"))):false
+
+*********************************************************************************************************************************************************************************************
+Current date in milliseconds converted to seconds –72 hours
+((#today = new java.util.Date().getTime())/1000) –259200
+*********************************************************************************************************************************************************************************************
+Maps an attribute to blank/no value
+#this.get("FirstName")!=null?"":""
+*********************************************************************************************************************************************************************************************
+MemberOf Group
+((#this.get("<domnain>.memberOf").toString().matches("(?i)aws"))):false
+*********************************************************************************************************************************************************************************************
+Working:
+#attr = #this.get("ds.LDAP.State"), #attr.equals("admin")?"true":#attr.equals("granted")?"true":"false"
+*********************************************************************************************************************************************************************************************
+single datastore table true false
+#this.get("ds.LDAP.State").toString().equals("granted")?"true":"false"
+*********************************************************************************************************************************************************************************************
+true false statement
+#this.get("<attribute_name>").toString().equals("<value>")?true:false
+*********************************************************************************************************************************************************************************************
+multiple table datatastore check
+#this.get("ds.LDAP.State")!=null?((#this.get("ds.LDAP.State").toString().matches("(?i)granted"))||(#this.get("ds.LDAP.State").toString().matches("(?i)admin"))):false
+
+*********************************************************************************************************************************************************************************************
+Get an atribute, uppercase and chaeck if ti starts with the string
+this.get("PUID")!=null?((#this.get("PUID").toString().toUpperCase().startsWith("IAMD"))):false
+*********************************************************************************************************************************************************************************************
+Example:
+#this.get("ds.LDAP.State")!=null?
+(
+(
+#this.get("ds.LDAP.State").toString().matches("(?i)granted")
+&&
+#this.get("context.VirtualServerId").toString()=="Engineering"
+)||
+(
+#this.get("ds.LDAP.State").toString().matches("(?i)admin")
+&&
+#this.get("context.VirtualServerId").toString()=="Marketing"
+)
+):false
+*********************************************************************************************************************************************************************************************
+OGNL Expressions Assignment
+This purpose of this exercise is to review and work on OGNL Expression with PingFederate.
+Review the following OGNL expression blog by John DaSilva, (https://www.pingidentity.com/content/dam/developer/downloads/Resources/OGNL%20Series%2009192014.pdf). This blog should help you understand the basics of OGNL expression and how they work in relation to PingFederate.
+Task 1 –Write an OGNL expression that creates an email address from a firstName, lastName, and domain values.
+I would start by asking the customer for some example assertion values, to ensure no confusion. For this case I’ll make the following assumptions.
+Assertion values:
+• firstName = “John”
+• lastName = “Doe”
+• domain = “domain.com”
+Desired output:
+• JohnDoe@domain.com
+OGNL Expression:
+#fn = #this.get("firstName").getValue(),
+#sn = #this.get("lastName").getValue(),
+#dn = #this.get("domain").getValue(),
+#fn+#sn+"@"+#dn
+*********************************************************************************************************************************************************************************************
+Task 2 --Write an OGNL expression which appends the “All Users” groups to a user’s memberOf in a SAML attributes within an assertion.
+I’ve highlighted the line that you can modify to change whatever group value you wish to append. I know that you can also streamline this further but this is at least functional.
+OGNL Expression:
+#groupOutputArray= new java.util.ArrayList(),
+#groupInputArray = #this.get("ds.LDAP.memberOf")!=null ? #this.get("ds.LDAP.memberOf").getValues() : {},
+#i= 0,
+#groupInputArray.{#group = new javax.naming.ldap.LdapName(#groupInputArray[#i]),
+#groupName = #group.toString(),
+#groupOutputArray.add(#groupName),
+#i = #i + 1},
+#groupOutputArray.add("CN=All_Users,CN=Users,DC=DCMCD,DC=local"),
+#this.get("ds.LDAP.memberOf")!=null? new org.sourceid.saml20.adapter.attribute.AttributeValue(#groupOutputArray) : null
+*********************************************************************************************************************************************************************************************
+Task 3 –Write and OGNL expression which checks if the email address, from any data store, is null or empty.If the email address value is null or empty, then return “No email address”.
+OGNL Expression:
+#value = #this.get("ds.LDAP.mail"),
+#value == null ? "No Email Address" : #value
+(Optional) –Create issuance criteria using an OGNL expression, which checks the User-Agent header. The criteria will prevent all users who are using Internet Explorer or Android devices from access a SAML application.
+OGNL Expression:
+Mixed results with testing:
+#this.get("context.HttpRequest").getObjectValue().getHeader("User-Agent").equals("Android")
+Will require further testing to refine. So far every request is triggering the issuance criteria, but I feel like this is close. I’m running out of time so I wanted to send you what I have even though it’s not perfect yet.
+*********************************************************************************************************************************************************************************************
+Grab the first 30 characters before the @ sign in an email address, but only do the substring call if the length is greater than 30:
+#val = #this.get("mail").toString().split("@")[0], #val.length() > 30 ? #val.substring(0,30):#val
+If samaccountname is empty, then grab uid:
+#userid = #this.get("sAMAccountName") , (#userid && !#userid.toString().isEmpty()) ? #userid : 
+#this.get("uid")
+The piece highlighted in yellow confirms whether the sAMAccountName base object is null.
+The piece highlighted in blue confirms whether the sAMAccountName when converted to a string is not empty. I think this is the key to getting it working better for you.
+The piece highlighted in green retrieves the literal sAMAccountName object (not the string converted earlier).
+The piece highlighted in pink retrieves the literal uid object (not the string) if the previously if statement equates to false.
+Here’s the article I used to build this off of:
+https://ping.force.com/Support/Group-Detail/PingFederate-Q&A/Feed-Detail/feedId_0D54000002d0g1LCAQ
+*********************************************************************************************************************************************************************************************
+This strips out just the CN value and also makes sure the CN value matches the required filters. Only passes those values in the assertion.
+#groupCnOnly = new java.util.ArrayList(),
+#groups = #this.get("ds.LDAP.memberOf")!=null?#this.get("ds.LDAP.memberOf").getValues().{?matches("CN=APP-SmartComm-Admin.*|CN=APP-GWCC-ALL-USERS-T.*|CN=APP-SmartComm-AllUsers-Test.*")} : {},
+#i= 0,
+#groups.{ #group = new javax.naming.ldap.LdapName(#groups[#i]),
+#cn = #group.getRdn(#group.size() -1).getValue().toString(),
+#groupCnOnly.add(#cn),
+#i = #i + 1 },
+#this.get("ds.LDAP.memberOf")!=null? new org.sourceid.saml20.adapter.attribute.AttributeValue(#groupCnOnly) : null
+*********************************************************************************************************************************************************************************************
+#aList = new java.util.ArrayList(),
+#test ="test1^test2^test3",
+#array = test.split("^").{#x = #this, #aList.add(#x)}
+You would of course remove the second line where I create test. Also the test.split in line three would become.
+#this.get("attributeName").toString().split("^")
+*********************************************************************************************************************************************************************************************
+#rm=#{"G-TBM-Admin":" Admin","G-TBM-Business User":"Business User"}, #map=:[#rm.get(#this) ], #cat=:[#this.size>1 ? #this[0]+","+#cat(#this.subList(1,#this.size)): #this[0] ],#inRoles=(#this.get("role")==null?{}:#this.get("role").getValues()),#outRoles=#inRoles.{ #map( #this ) }, #outRoles.add(""), #cat(#outRoles)
+Here's my test results:
+*********************************************************************************************************************************************************************************************
+Issuance criteria for multiple groups:
+#this.get("ds.AD.memberOf")!=null?
+#this.get("ds.AD.memberOf").toString().matches("(?i)
+.*CN=ITCDInfrastructureAgility,OU=Groups,OU=IT Continuous Delivery,OU=Business Resources,DC=gci,DC=com.*|.*CN=ITCDInfrastructureMobility,OU=Groups,OU=IT Continuous Delivery,OU=Business Resources,DC=gci,DC=com*")
+:@java.lang.Boolean@FALSE
+*********************************************************************************************************************************************************************************************
+MemberOf arraylist comparison:
+#groupCnOnly = new java.util.ArrayList(),
+#groups = #this.get("ds.LDAP.memberOf")!=null?#this.get("ds.LDAP.memberOf").getValues().{?matches("CN=APP-RATEWKSHT-ALL-USERS-DEV.*|CN=APP-GWCC-ALL-USERS-DEV.*")} : {},
+#i= 0,
+#groups.{ #group = new javax.naming.ldap.LdapName(#groups[#i]),
+#cn = #group.getRdn(#group.size() -1).getValue().toString(),
+#groupCnOnly.add(#cn),
+#i = #i + 1 },
+#this.get("ds.LDAP.memberOf")!=null? new org.sourceid.saml20.adapter.attribute.AttributeValue(#groupCnOnly): null
+Memberof string comparison:
+#this.get("ds.LDAP.memberOf")!=null? #this.get("ds.LDAP.memberOf").toString().matches("(?i) |.*CN=APP-GWCC-ALL-USERS-DEV,OU=Guidewire,OU=AppPermissions,OU=Groups,DC=<dc>grp,DC=corp.*|.*CN=APP-RATEWKSHT-ALL-USERS-DEV,OU=AppPermissions,OU=Groups, DC=<dc>grp,DC=corp.*") :@java.lang.Boolean@FALSE
+*********************************************************************************************************************************************************************************************
+STS Client Authentication Context
+The STS SSL Client Certificate Chain example below checks that the issuer of the client certificate matches the specified DN.
+#this.get("context.StsSSLClientCertChain").getObjectValue()[1].getSubjectX500Principal().equals(new javax.security.auth.x500.X500Principal("CN=Ping Identity Engineering,OU=Engineering,O=Ping Identity,L=Denver,ST=CO,C=USA"))
+*********************************************************************************************************************************************************************************************
+HTTP Request Context
+The example below may be used to retrieve a value from an HTTP request object, in this case the User-Agent HTTP header, for comparison to a value required for token authorization.
+#this.get("context.HttpRequest").getObjectValue().getHeader("User-Agent").equals("somevalue")
+
+*********************************************************************************************************************************************************************************************
+Token Authorization
+The expression below verifies if a user is a member of the “Contractor” or “Employee” group:
+#this.get("ds.ldap.memberOf")!=null?
+(
+#this.get("ds.ldap.memberOf").toString().matches("(?i)
+.*CN=Contractor,cn=users,dc=company,dc=com.*|
+.*CN=Employee,cn=users,dc=company,dc=com.*")
+):@java.lang.Boolean@FALSE
+*********************************************************************************************************************************************************************************************
+The following expression extracts the domain information out of an email address (mail) and returns true if it matches a specific domain (company.com):
+#this.get("mail")!=null?
+(
+#email=#this.get("mail").toString(),
+#atSign="@",
+#at=#mail.indexOf(#atSign),
+#at > 0?
+(
+#domain=#mail.subject(#at+1),
+#domain.matches("(?i)company.com")
+):false
+):false
+*********************************************************************************************************************************************************************************************
+Look for Groups from datasource while formatting the groups so full DN is not needed
+#groupCnOnly = new java.util.ArrayList(),
+#groups = #this.get("ds.LDAP.memberOf")!=null?#this.get("ds.LDAP.memberOf").getValues().toString().{?matches("CN=APP-SmartComm-Admin.*|CN=APP-GWCC-ALL-USERS-T.*|CN=APP-SmartComm-AllUsers-Test.*")} : {},
+#i= 0,
+#groups.{ #group = new javax.naming.ldap.LdapName(#groups[#i]),
+#cn = #group.getRdn(#group.size() -1).getValue().toString(),
+#groupCnOnly.add(#cn),
+#i = #i + 1 },
+#this.get("ds.LDAP.memberOf")!=null? new org.sourceid.saml20.adapter.attribute.AttributeValue(#groupCnOnly) : null
+*********************************************************************************************************************************************************************************************
+Limit character length
+#val = #this.get("mail").toString().split("@")[0], #val.length() > 30 ? #val.substring(0,30):#val
+*********************************************************************************************************************************************************************************************
+Using Client IP Address for Issuance Criteria
+The other new feature in PingFederate 7.0 for token authorization is theClient IP. This attribute represents the IP address of the client sending a request to PingFederate. The HTTP header used to determine this address is a globally defined system option.
+An example use case of this could be authorizing the client based on their IP subnet:
+#address = #this.get("context.ClientIp").toString(),
+#subnet = "192.168.1.0/23",
+#utils = new org.apache.commons.net.util.SubnetUtils(#subnet),
+#utils.getInfo().isInRange(#address)
+The above example reads theClient IPaddress into a string. An authorized IP subnet is defined in Classless Inter-Domain Routing(CIDR) notation. An instance ofSubnetUtilsis created with the parameter of the authorized subnet. Using thegetInfo()method returns theSubnetInfoclass, which can call upon theisInRange()method to return a true or false if the client's IP is within the authorized subnet range.
+*********************************************************************************************************************************************************************************************
+Using HTTP Request Elements for Issuance Criteria
+In the case of aHTTP Request, an instance of the JavaHttpServletRequestclass represents the HTTP request sent to PingFederate. It is possible to reference header field names/values, cookies, or call methods on theHttpServletRequestclass within OGNL.
+For this use case, to check for the existence of a given header name that is present or not null, use the following OGNL expression:
+#this.get("context.HttpRequest").getObjectValue().getHeader("someHeaderName").matches(".*")
+This gets the object values of the original HTTP request, gets the header field named "someHeaderName" and runs a regular expression ".*" against the header field value that would match any non-null value.
+*********************************************************************************************************************************************************************************************
+// Base64 encode and decode strings
+//
+// You have an attribute which contains special characters, such as XML. You would like to
+// base64encode it at the Identity Provider (IdP), then decode it at the Service Provider (SP).
+//
+// ----------\/ Begin OGNL expression (don't copy the above text) \/ ----------
+#b64EncodedString = @com.pingidentity.common.util.B64@encode(#this.get("plainTextValue").toString())
+#plainTextString = @com.pingidentity.common.util.B64@decodeToString(#this.get("b64EncodedValue").toString())
+*********************************************************************************************************************************************************************************************
+// Check for null value
+//
+// This OGNL expression will check the attribute "attributeName" for a null value. If the value
+// is null, a default value of "default" will be sent in the assertion otherwise the value of
+// attributeName will be sent.
+//
+// ----------\/ Begin OGNL expression (don't copy the above text) \/ ----------
+#value = #this.get("attributeName"),
+#value == null ? "default" : #value
+*********************************************************************************************************************************************************************************************
+// Force uppercase or lowercase of a datastore value
+//
+// If you are obtaining additional attributes from a datastore (such as LDAP), the partner
+// may require that attribute values are either all uppercase, or all lowercase. This example
+// returns the value of a datastore lookup (ds.LDAP.mail) in either uppercase or lowercase.
+//
+// ----------\/ Begin OGNL expression (don't copy the above text) \/ ----------
+#lowerCaseValue = #this.get("ds.LDAP.mail").toString().toLowerCase()
+#upperCaseValue = #this.get("ds.LDAP.mail").toString().toUpperCase()
+***********************************************************************************************************************************************************************************************
+// Office365 Exchange Active Client restrict to subnets
+//
+// The following example uses the custom headers provided in a Microsoft O365 Active Client
+// authentication request to determine if the client is coming from an approved subnet. If
+// so the request will be permitted.
+//
+// ----------\/ Begin OGNL expression (don't copy the above text) \/ ----------
+#permitRequest = false,
+#objReq = #this.get("context.HttpRequest").getObjectValue(),
+#msApplication = #objReq.getHeader("X-MS-Client-Application") != null ? #objReq.getHeader("X-MS-Client-Application") : "",
+#clientIPList = #objReq.getHeader("X-MS-Forwarded-Client-IP") != null ? #objReq.getHeader("X-MS-Forwarded-Client-IP") : "0.0.0.0, 0.0.0.0, 0.0.0.0",
+#clientIP = #clientIPList.toString().split(',')[0],
+#subnet1 = new org.apache.commons.net.util.SubnetUtils("192.0.2.0/24"),
+#subnet2 = new org.apache.commons.net.util.SubnetUtils("198.51.100.0/24"),
+#permitRequest = (#subnet1.getInfo().isInRange(#clientIP) || #subnet2.getInfo().isInRange(#clientIP)) && (#msApplication == "Microsoft.Exchange.RPC") ? true : #permitRequest,
+#result = #permitRequest
+***********************************************************************************************************************************************************************************************
+// Return a single value from a multi-value attribute
+//
+// During attribute contract fulfillment, an administrator may wish to retrieve only one attribute
+// from an LDAP field containing a multi-value attribute. This task can most easily be done using
+// OGNL's "Selecting from Collections" logic. For example, the carat -"^" in
+// #addresses.{^ #this.toString().startsWith("SMTP:") } would select the first element that starts
+// with "SMTP:".
+//
+// ----------\/ Begin OGNL expression (don't copy the above text) \/ ----------
+#addresses = #this.get("ds.LDAP.proxyAddresses") != null ? #this.get("ds.LDAP.proxyAddresses").getValues() : {},
+#firstmatch = #addresses.{^ #this.toString().startsWith("SMTP:") },
+#firstmatch != null ? new org.sourceid.saml20.adapter.attribute.AttributeValue(#firstmatch) : null
+***********************************************************************************************************************************************************************************************
+// Test if current time in specified range
+//
+// This would be used in an issuance criteria to determine if an SSO event or OAuth
+// request has been received within a specified time frame. Say during normal business
+// hours.
+//
+// The time values are set in the expression "@HOUR_OF_DAY, 8" in the setting of the
+// before and after variables. Adjust this is needed depending on your application
+// requirements.
+//
+// ----------\/ Begin OGNL expression (don't copy the above text) \/ ----------
+#before = new java.util.GregorianCalendar(),
+#before.set(@java.util.Calendar@HOUR_OF_DAY, 8),
+#after = new java.util.GregorianCalendar(),
+#after.set(@java.util.Calendar@HOUR_OF_DAY, 17),
+#now = new java.util.GregorianCalendar(),
+(#before.before(#now))?(#after.after(#now))?@java.lang.Boolean@TRUE:@java.lang.Boolean@FALSE:@java.lang.Boolean@TRUE
+**************************************************************************************************************************************************************************
+*********************
+// Testing the Active Directory userAccountControl attribute
+//
+// During token issuance, it may be desirable to check the Active Directory userAccountControl
+// attribute. An example is to verify that that the account is not disabled.
+// To check a value in this field, the easiest mechanism is to use an OGNL expression involving
+// a "bitwise AND" operation.
+//
+// The examples below test the userAccountControl value returned from an attribute lookup (ds.LDAP.userAccountControl)
+//
+// ----------\/ Begin OGNL expression (don't copy the above text) \/ ----------
+#isAccountEnabled = (#this.get("ds.LDAP.userAccountControl")&2)==0
+#isAccountUnlocked = (#this.get("ds.LDAP.userAccountControl")&16)==0
+#isAccountEnabledAndUnlocked = (#this.get("ds.LDAP.userAccountControl")&18)==0
+***********************************************************************************************************************************************************************************************
+Issuance Criteria for mutual TLS:
+#this.get("context.StsSSLClientCertChain").getObjectValue()[1].getSubjectX500Principal().equals(new javax.security.auth.x500.X500Principal("CN=Ping Identity Engineering,OU=Engineering,O=Ping Identity,L=Denver,ST=CO,C=USA"))
+memberOf issuance criteria
+#this.get("memberOf")!=null? Error Result
+#this.get("memberOf").toString().matches("(?!).*CN=AWS_.*"):@java.lang.Boolean@FALSE User not in AWS groups
+***********************************************************************************************************************************************************************************************
+Need verification of actual working version
+AWS group membership as an attribute with an array of groups
+#groupAWSOnly = new java.util.ArrayList(),
+#groups = #this.get("memberOf")!=null?
+#this.get("memberOf").getValues().{?matches("CN=AWS_.*")} : {}, #i= 0,
+#groups.{#group = new javax.naming.ldap.LdapName(#groups[#i]),
+#groupAWSOnly.add(#group).toString(),#i = #i + 1},
+#this.get("memberOf")!=null? new org.sourceid.saml20.adapter.attribute.AttributeValue(#groupAWSOnly): null
