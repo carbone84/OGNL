@@ -4,3 +4,60 @@ These have been used with memberOf field of AD
 #return = #value.matches("CN=commonname,OU=organizationalunit,DC=domaincontroller")?
             "Authorized":
             "Unauthorized"
+
+#this.get("ds.ADSource.memberOf").toString().replaceAll("\\[|\\]","").split(",\\s"). {?matches("CN=Global_Admin_Group.*|CN=Service_Admin_Group.*")}
+
+Get DNs of multi-valued groups from memberOf 
+new org.sourceid.saml20.adapter.attribute.AttributeValue(#this.get("ds.AD.memberOf").toString().replaceAll("\\[|\\]","").split(",\\s").{?matches("CN=lmusertest.*|CN=LMAdminTest.*")})
+
+Get CNs of multi-valued groups from memberOf
+#groupCnOnly = new java.util.ArrayList(),
+#groups = #this.get("ds.AD.memberOf").toString().replaceAll("\\[|\\]","").split(",\\s").{?matches("CN=lmusertest.*|CN=LMAdminTest.*")},
+#i= 0,  
+#groups.{ #group = new javax.naming.ldap.LdapName(#groups[#i]),  
+#cn = #group.getRdn(#group.size() - 1).getValue().toString(),  
+#groupCnOnly.add(#cn),  
+#i = #i + 1 },  
+#this.get("ds.AD.memberOf")!=null? new org.sourceid.saml20.adapter.attribute.AttributeValue(#groupCnOnly)  : null
+
+
+
+#muleGroupsOnly = new java.util.ArrayList(),
+#groups = #this.get("ds.WestfieldAD.memberOf")!=null ? #this.get("ds.WestfieldAD.memberOf").getValues() : {},
+#groups.{
+#group = #this,
+#group = new javax.naming.ldap.LdapName(#group),
+#cn = #group.getRdn(#group.size() -1).getValue().toString(),
+#muleGroupsOnly.add(#cn)
+},
+#this.get("ds.WestfieldAD.memberOf")!=null? new org.sourceid.saml20.adapter.attribute.AttributeValue(#muleGroupsOnly):null
+
+
+#muleGroupsOnly = new java.util.ArrayList(),
+#groups = #this.get("ds.WestfieldAD.memberOf")!=null?#this.get("ds.WestfieldAD.memberOf").getValues():{},
+#group = #this.toString(),
+#muleGroup = #group.contains("APP-Mule")?#group:null,
+#muleGroup!=null?#muleGroupsOnly.add(#muleGroup):null
+#groups.{
+},
+#this.get("ds.WestfieldAD.memberOf")!=null? new org.sourceid.saml20.adapter.attribute.AttributeValue(#muleGroupsOnly):null
+
+
+
+Agero :
+#value = #this.get("ds.WestfieldAD.memberOf").toString(),
+#return = #value.contains("APP-AgeroPortal-User-Test")?"APP-AgeroPortal-User-Test":"Unauthorized"
+Mitchell Decision Point :
+#name = #this.get("mail").toString().split("@")[0],
+#return = #name.length() > 15 ? #name.substring(0,15) : #name
+MuleSoft :
+#muleGroupsOnly = new java.util.ArrayList(),
+#groups = #this.get("ds.WestfieldAD.memberOf")!=null?#this.get("ds.WestfieldAD.memberOf").getValues():{},
+#group = #this.toString(),
+#muleGroup = #group.contains("APP-Mule")?#group:null,
+#muleGroup!=null?#muleGroupsOnly.add(#muleGroup):null
+},
+#groups.{
+#this.get("ds.WestfieldAD.memberOf")!=null? New org.sourceid.saml20.adapter.attribute.AttributeValue(#muleGroupsOnly):null
+Shift :
+#this.get("ds.AD.memberOf").toString().matches("(?i).*APP-GWCC-SIU-PROD.*|.*APP-GWCC-CAPS-PROD.*|.*APP-GWCC-CLAIMS-AUTO-TECH-PROD.*|.*APP-GWCC-CLAIMS-AUTO-ANALYST-PROD.*")?"Shift-Force-SSO":"Unauthorized"
