@@ -1,0 +1,830 @@
+		OGNL Tips and Examples
+ 
+ 
+
+About Tech Notes
+Ping Identity Corporation publishes Tech Notes periodically to give our customers insight into configuration, deployment, prototypes, or use cases that are not part of the main product manual or basic product deployment.  These Notes may be used as samples to guide your deployment.
+Disclaimer
+This document is provided for informational purposes only, and the information herein is subject to change without notice. Ping Identity does not provide any warranties and specifically disclaims any liability in connection with this document.
+Note that Ping Identity may not provide support for the sample configuration provided in this document.  The variability inherent among security environments prevents full testing and support for all possible platform configurations. If you need special assistance or would like to inquire about implementation or support programs, please contact Ping Identity Client Services (sales@pingidentity.com).
+Contact Information
+Ping Identity Corporation
+1099 18th Street, Suite 2950
+Denver, CO 80202
+U.S.A.
+Phone: 877.898.2905 (+1 303.468.2882 outside North America)
+Fax: 303.468.2909
+E-mail: info@pingidentity.com
+Web Site: http://www.pingidentity.com
+
+ 
+© 2019 Ping Identity Corporation. All rights reserved.
+April, 2019
+
+ 
+Table of Contents
+	About Tech Notes
+	Disclaimer
+	Contact Information
+OGNL Reference
+Parsing a DN String using OGNL
+Check for null value in attribute using OGNL
+Extract XML attribute data using OGNL
+Base 64 encode attribute data using OGNL
+Using OGNL to Call an External Java Class and Methods
+Test for the presence of a string using OGNL
+Replace a value in a string
+Pulling an Email Address from a x509 Cert using the x509 Adapter
+Left Pad an Attribute via PF Library Classes and Methods
+Force UPPER CASE in an attribute value
+To Concatenate Domain and SamAccountName
+To check for sAMAccountName from 2 different AD structures.
+Multi_Value Attribute in assertion, from memberOf
+Multi-Value Attribute in assertion, from 2 fields (email and extensionAtttribute3)
+Credential Validator which one - OGNL
+Strip text (user\) in OGNL
+MISC examples
+	Filter and transform multi-value attributes and lists:
+	LDAPQuery:
+Oauth LDAP lookup Multiple Domains
+This is an OGNL expression that we used in the Issuance Criteria screen to check for 2 conditions:
+Inject OAuth Access Tokens via OGNL into an SP Adapter Payload
+OGNL statement to map AD role to AWS role (arn):
+Parse the userPrincipleName and then return the right value for that domain:
+Parse out the userid from the subject in a cert: CN:
+Pull userId from SubjectDN:
+Base64 decode of coreblox SM Session Cookie:
+Sending multi-value attributes to Pingone for UserGroup:
+Need to check multiple IPRanges for "Issuance Criteria":
+OGNL Basics
+Check for "empty" on string field or Null:
+Basic IF statement:
+Check for Null Expression and basic IF statement:
+Basic Concatenation
+Check for Group Membership, Return Boolean
+Check for 2 groups, using OR operator:
+Generate a pseudonym from an attribute returned from a datasource lookup
+Pick DataStore that does not have a null value:
+Issue a refresh token alongside an access token when leveraging the AccessTokenIssuer class
+OGNL to stop devices that do not have MDM installed
+	Look for userid that matches 3 - 4 (3 Alpha, and 4 Digits) using Regex:
+	Get the last 4 of SSN, but might have extra Character at the end (Carriage Return).  So instead of getting last 4, getting 5 - 9:
+	Searching for certain Groups (for AWS), and only sending those groups, and reformatting it for AWS pattern:
+Creating a jwt token to send to the target site.
+Issuance Criteria of the WS-Trust portion of the o365
+OGNL to get Oauth Scopes
+Choose attributes
+PINGID
+O365 Example showing stopping users off network not able to use Outlook and Lync clients
+ 
+
+OGNL Reference
+For a complete listing of OGNL syntax, please refer to this URL:
+http://commons.apache.org/ognl/language-guide.html (Current)
+http://www.opensymphony.com/ognl/  (old)
+Parsing a DN String using OGNL
+ 
+The following OGNL expression will parse a DN string to return a specific value (e.g. the "uid" from "uid=foo,ou=people,o=pingidenttiy.com") 
+ 
+#beginString="uid=", 
+#endString=",ou=", 
+#this.get("uid").toString().substring( 
+#this.get("uid").toString().indexOf(#beginString) + #beginString.length(), 
+#this.get("uid").toString().indexOf(#endString)) 
+ 
+Check for null value in attribute using OGNL
+
+This OGNL expression will check for a null value for an attribute. If the value is present it will be sent in the assertion as is, if it is null it is replaced with a "default value". 
+ 
+#value = #this.get("attribute name"),
+
+#value == null ? "default" : #value
+ 
+Extract XML attribute data using OGNL
+ 
+The OGNL expression below will extract the value of a specified XML <node> tag as the value of a given attribute. 
+ 
+#beginString="<node>", 
+#endString="</node>", 
+#this.get("source attribute data").toString().substring( 
+#this.get("source attribute data").toString().indexOf(#beginString) + #beginString.length(), 
+#this.get("source attribute data").toString().indexOf(#endString))
+
+Specifically this could be used to parse data returned from a data source lookup for the attribute "data": 
+ 
+#beginString="<node>", 
+#endString="</node>", 
+#this.get("ds.data").toString().substring( #this.get("ds.data").toString().indexOf(#beginString) + #beginString.length(), #this.get("ds.data").toString().indexOf(#endString))
+ 
+or to extract the username value from the SMContent sent by SiteMinder in a SAML 1.x assertion: 
+ 
+#beginString="<SM:Username>", 
+ 
+#endString="</SM:Username>", 
+ 
+#this.get("SMContent").toString().substring( 
+ 
+#this.get("SMContent").toString().indexOf(#beginString) + #beginString.length(), 
+ 
+#this.get("SMContent").toString().indexOf(#endString)) 
+ 
+Base 64 encode attribute data using OGNL
+ 
+The following OGNL expression will base-64 encode the attribute "test": 
+ 
+@com.pingidentity.common.util.B64@encode(#this.get("test").toString()) 
+ 
+The following OGNL expression will decode the attribute "test" that was encoded above: 
+ 
+@com.pingidentity.common.util.B64@decodeToString(#this.get("test").toString()) 
+ 
+Using OGNL to Call an External Java Class and Methods
+ 
+This is an example of calling a Java class and methods from OGNL during Assertion creation. This came out of a customer requirement where they wanted to filter group membership for a Federation connection as end users in their directory can have a very large number of groups and they wanted to not pass extraneous group membership thus keeping the assertion smaller. 
+To implement: 
+	1. Create a Java project in Eclipse (for example) defining a class and methods similar to the Java source code below. 
+	2. Jar the project and place the Jar file in the '<PF>\server\default\lib' directory. Restart PF. 
+	3. Edit the Assertion creation and add the OGNL code below that will make the calls to the Java library. 
+In this example, remember to use the full DN of the Groups (in Active Directory). 
+
+Java Source Code 
+ 
+package com.pingidentity.soaiib; 
+import org.sourceid.saml20.adapter.attribute.AttributeValue; 
+import java.util.*;  
+public class AttributeValueFilter {     
+    private Set<String> acceptableValues = new HashSet<String>();     
+    public void addOkValue(String value)      
+ 
+    {         
+        acceptableValues.add(value);     
+    }   
+ 
+public AttributeValue filter(String value)     
+    {         
+        return filter(new AttributeValue(value));     
+    }  
+ 
+public AttributeValue filter(AttributeValue av)     
+    {         
+        List<String> filteredValues = new ArrayList<String>();         
+        if (av != null)         
+        {             
+            for (String value : av.getValues())             
+            {                 
+                if (acceptableValues.contains(value))                 
+                {                     
+                filteredValues.add(value);                 
+                }             
+            }         
+        }         
+        return new AttributeValue(filteredValues);     
+    }  
+}
+ 
+OGNL Source Code: 
+ 
+#av = new com.pingidentity.soaiib.AttributeValueFilter(), 
+ 
+#av.addOkValue("CN=Shared Files,OU=Security Groups,DC=corp,DC=pingidentity,DC=com"), 
+ 
+#av.addOkValue("CN=Employees,CN=Users,DC=corp,DC=pingidentity,DC=com"), 
+ 
+#result = #av.filter(#this.get("ds.memberOf")) 
+ 
+ 
+Test for the presence of a string using OGNL
+ 
+Here is an example OGNL expression which evaluates a given attribute for the presence of a string within the attribute: 
+ 
+#temp=#this.get("<attribute name>").toString(), 
+#temp=#temp.indexOf("<string>")>=0?1:0
+ 
+This expression returns a 1 if the <string> you are looking for is in the data set returned by the search for <attribute name>, and returns a 0 if it is not. 
+ 
+[<attribute name> and <string> must be replaced by actual values in the expression.]
+ 
+Replace a value in a string
+ 
+To replace a value in an attribute string such as "Research & Development" to "Research and Development" 
+ 
+#dept="Research & Development", 
+#this.get("dept").toString().replace("&", "and")
+ 
+Result: "Research and Development" 
+ 
+Pulling an Email Address from a x509 Cert using the x509 Adapter
+ 
+Using the x509 Adapter v1.0 -- it is possible to pull the HEX encoded email address from a digital certificate for use in completing the Attribute Contract. 
+ 
+#emailAttr = "1.2.840.113549.1.9.1=" + #this.get("1.2.840.113549.1.9.1").toString(), 
+
+#x500p = new javax.security.auth.x500.X500Principal(#emailAttr), 
+ 
+#x500p.toString().split("=")[1]
+ 
+Left Pad an Attribute via PF Library Classes and Methods
+ 
+In the standard PF libraries, there is a ‘leftPad’ method that is part of a ‘StringUtils’ class. Thus, you can create an OGNL expression such as: 
+ 
+@org.apache.commons.lang.StringUtils@leftPad(#this.get("SAML_SUBJECT").toString(), 10, '0')
+ 
+Which should pad the SAML_SUBJECT with leading ‘0’s to make a fixed length of 10. 
+ 
+There are also string methods to support rightPad, split, etc. The are located in the 'StringUtils' class as part of the 'org.apache.common.lang' package in the 'common-lang.jar' file.
+ 
+Force UPPER CASE in an attribute value
+ 
+This OGNL expression will force the resulting value to upper case:
+ 
+#this.get("attribute name").toString().toUpperCase() 
+ 
+To Concatenate Domain and SamAccountName
+#temp=#this.get("Domain/Realm Name").toString() + '\\' + #this.get("Username")
+ 
+To check for sAMAccountName from 2 different AD structures.
+ 
+#temp=#this.get("ds.AD1.sAMAccountName")!=null?#this.get("ds.AD1.sAMAccountName").toString():#this.get("ds.AD2.sAMAccountName")!=null?#this.get("ds.AD2.sAMAccountName").toString():"ErrorConditionNull"
+ 
+ 
+Multi_Value Attribute in assertion, from memberOf
+https://www.pingidentity.com/support/solutions/index.cfm/How-to-process-a-LDAP-multi-valued-attribute-and-return-it-as-a-multi-valued-SAML-attribute673515
+ 
+Multi-Value Attribute in assertion, from 2 fields (email and extensionAtttribute3)
+ 
+#theCNValues = new java.util.ArrayList(), 
+    #theValues = new java.util.ArrayList(), 
+         @java.lang.System@out.println(" "), 
+         @java.lang.System@out.println("-----Parsing Multivalued memberOf Attribute-----"), 
+    #theValues.add(#this.get("ds.telephoneNumber").toString()), 
+    #theValues .add( #this.get("ds.mail").toString()),   
+         @java.lang.System@out.println("-----Iterate-----"),
+         @java.lang.System@out.println(#theValues), 
+    #i = 0, 
+    #theValues.
+    { 
+          @java.lang.System@out.println(#theValues[#i]), 
+    
+    #val = #theValues[#i],  
+    #newVal = #val,  
+    
+         @java.lang.System@out.println(#theValues + " => " + #newVal), 
+    
+    #theCNValues.add(#newVal), 
+    #i = #i + 1, 
+         @java.lang.System@out.println("-----EO  Iterate-----") 
+    },
+           
+    new org.sourceid.saml20.adapter.attribute.AttributeValue(#theCNValues)
+ 
+Credential Validator which one - OGNL
+#temp=#this.get("ds.AD1.mail")!=null?#this.get("ds.AD1.mail").toString():#this.get("ds.AD2.mail")!=null?#this.get("ds.AD2.mail").toString():"ErrorConditionNull" 
+#temp=#this.get("ds.AD1.mail")!=null?#this.get("ds.AD1.mail").toString():#this.get("ds.AD2.mail")!=null?#this.get("ds.AD2.mail").toString():"ErrorConditionNull" 
+ 
+Strip text (user\) in OGNL
+#this.get("attr3").toString().substring(#this.get("attr3").toString().indexOf("\\") + 1, #this.get("attr3").toString().length())
+
+MISC examples
+ Gmail:  #endString="@", #this.get("ds.mail").toString().substring(0, #this.get("ds.mail").toString().indexOf(#endString))
+ 
+Safeguard:  new org.sourceid.saml20.adapter.attribute.AttributeValue(#this.get("ds.extensionAttribute11")!=null?#this.get("ds.extensionAttribute11").toString().split(",").{#this}:"SS_USER")
+ 
+Enwisen:  #result=#this.get("ds.employeeNumber").toString(),#len=#result.length(),#len eq 5 ? (#result="000"+#result) : (#result="0000"+#result)
+ 
+ Adgistics:  #temp=#this.get("ds.division"), #temp=#temp==null?”none":#temp.toString()  
+ 
+Filter and transform multi-value attributes and lists:
+	· Date:  2013-12-16
+	· RSA:  Brian Yoon
+	· Version:  0.1b1
+** You need the Jar files:  rsautils.jar, Utils.java
+ 
+These methods allow you to easily filter and modify multi-value attributes and lists via simple regex patterns in OGNL.  Here are a couple examples:
+Pull out only group1 and group2 from memberOf and then extract only CN values.
+#memberof=#this.get("ds.memberOf"),
+#groups=@com.pingidentity.rsa.Utils@filterAttributes(#memberof,".*group1.*|.*group2.*"),
+#groups=@com.pingidentity.rsa.Utils@transformAttributes(#memberof,"^CN=(.+?)(,.*)","$1")
+Also contains methods for lists.
+#list = new java.util.ArrayList(),
+#list.add("CN=group1,OU=Application,OU=Groupings,DC=corp,DC=company,DC=com"),
+#list.add("CN=group2,OU=Application,OU=Groupings,DC=corp,DC=company,DC=com"),
+#list.add("CN=group3,OU=Application,OU=Groupings,DC=corp,DC=company,DC=com"),
+#result=@com.pingidentity.rsa.Utils@filterList(#list,".*group1.*|.*group2.*"),
+#result=@com.pingidentity.rsa.Utils@transformList(#list,"^CN=(.+?)(,.*)","$1")
+ 
+LDAPQuery:
+	· Date:  2013-12-16
+	· RSA:  Brian Yoon
+	· Version:  0.1b1
+** You need the Jar files:  ldapquery.jar,  LDAPQuery.java
+	 
+These methods make LDAP queries based on PingFed data stores available via OGNL or where ever else you want to call them.  This is a slight modification from some source code found here on Confluence.  One difference is that the filter can pull back multiple objects (eg. filter on nested groups will return multiple objects).  Here are a couple examples:
+Retrieve nested groups for a user:
+#ldapID = "LDAP-1234567899F9DED0D66065D3A5F997E123456789",
+#ldapBase = "dc=my,dc=pingidentity,dc=com",
+#userDN = "CN=Brian Yoon,CN=Users,DC=my,DC=pingidentity,DC=com",
+#ldapFilter = "(member:1.2.840.113556.1.4.1941:=" + #userDN + ")",
+#ldapAttributes = new java.util.ArrayList(),
+#ldapAttributes.add("distinguishedName"),
+#ldapquery=new com.pingidentity.rsa.LDAPQuery(#ldapID),
+#groups=#ldapquery.getAttributes(#ldapBase,#ldapFilter,#ldapAttributes)
+I built a wrapper called getNestedGroups:
+#ldapID = "LDAP-1234567899F9DED0D66065D3A5F997E123456789",
+#ldapBase = "dc=my,dc=pingidentity,dc=com",
+#userDN = "CN=Brian Yoon,CN=Users,DC=my,DC=pingidentity,DC=com",
+#ldapquery=new com.pingidentity.rsa.LDAPQuery(#ldapID),
+#groups=#ldapquery.getNestedGroups(#ldapBase,#userDN)
+You can retrieve multiple attributes:
+#ldapID = "LDAP-1234567899F9DED0D66065D3A5F997E123456789",
+#ldapBase = "dc=my,dc=pingidentity,dc=com",
+#samaccountname = "username",
+#ldapFilter = "samaccountname=" + #samaccountname,
+#ldapAttributes = new java.util.ArrayList(),
+#ldapAttributes.add("mail"),
+#ldapAttributes.add("givenName"),
+#ldapAttributes.add("sn"),
+#ldapquery=new com.pingidentity.rsa.LDAPQuery(#ldapID),
+#groups=#ldapquery.getAttributes(#ldapBase,#ldapFilter,#ldapAttributes)
+ 
+ 
+#this.get("ds.LDAPADCPriceDomain.telephoneNumber")==null ? #this.get("ds.LDAPPingDir.mobile").getValues() : #this.get("ds.LDAPADCPriceDomain.telephoneNumber").getValues()
+ 
+Oauth LDAP lookup Multiple Domains
+This is an OAuth use case.
+Authentication - via IWA Adapter.
+	· Additional attribute lookup is configured in two places:
+- AT Mapping (3 attributes)
+- OIDC Policy (8 attributes)
+ 
+With a single domain - everything works fine.  The new requirement is - add access to the application for users in a second domain (separate forest with the two-way trust).
+Authentication from both domains - works fine via IWA adapter.
+Where we are facing a problem is in the OAUth Setting - AT Mapping and OIDC Policy, on the Contract Fulfillment step.
+In the Source of attributes, it forces to select a specific Data Store.
+This is an OGNL expression that we used in the Issuance Criteria screen to check for 2 conditions:  
+#this.get(“Username”).toString().startsWith(“sa_”) &&#this.get("context.HttpRequest").getObjectValue().getHeader("X-BAE-Security-Layer") == null
+Or 
+This allows for a query to be performed against each data store until a value is found, else provide for a blank value.
+ 
+#DS1Sn=#this.get("ds.DS1.sn"),
+#DS2Sn=#this.get("ds.DS2.sn"),
+((#DS1Sn!=null)&&(#DS1Sn.toString().length()>0))?
+#DS1Sn.toString():
+((#DS2Sn!=null)&&(#DS2Sn.toString().length()>0))?
+#DS2Sn.toString():""
+ 
+ 
+Inject OAuth Access Tokens via OGNL into an SP Adapter Payload
+ 
+ #attrs =  new java.util.HashMap(),
+ attrs.put("uid",#this.get("username")),
+ attrs.put("email", #this.get("email")),
+ #val = @com.pingidentity.sdk.oauth20.AccessTokenIssuer@issueToken(#attrs, null, null)
+ 
+ 
+ 
+OGNL statement to map AD role to AWS role (arn):
+ 
+I created an OGNL statement to map AD role to AWS role (arn).  I told the customer if this is going to be relatively static they could use the OGNL.  If they expect the AWS team to be constantly modifying and adding, I suggested having a lookup table that PingFed could query.
+Here is the OGNL:
+#rolemap = new java.util.HashMap(),
+#rolemap.put("adgroup1","arn1"),
+#rolemap.put("adgroup2","arn2"),
+#roles = new java.util.ArrayList(),
+#i = 0,
+#groups = #this.get("memberOf").getValues(),
+#groups.{
+  #group = #groups[#i],
+  #rolemap.containsKey(#group)?#roles.add(#rolemap.get(#group)):null,
+  #i = #i + 1
+},
+#result = new org.sourceid.saml20.adapter.attribute.AttributeValue(#roles)
+FROM: Brian Yoon
+Curtis Muir - I did an AWS implementation today and it went flawless.  Lessons learned:
+1)  You need both AWS role, and IDP info (i.e. arn:aws:iam::169763423465:role/TestSSO,arn:aws:iam::169763423465:saml-provider/SunPower-IDP)
+2)  The code is mapping AD role (adgroup1) to  AWS Role (am1 - See first lesson learned)
+3)  You will need attribute memberOf form AD in your LDAP look up (and of course it will not be memberOf but something like ds.AD.memberOf)
+ 
+Parse the userPrincipleName and then return the right value for that domain:
+ 
+Used this to Parse the userPrincipleName and then return the right value for that domain.  So if INTL return INTL.comain.com\username if US retrun just username.
+The was needed for Tableu Software
+#beginString="@", 
+#endString=".com", 
+#stringTest=#this.get('ds.
+UserPrincipleName').toString().substring( 
+#this.get('ds.UserPrincipleName').toString().indexOf(#beginString) + #beginString.length(), 
+#this.get('ds.UserPrincipleName').toString().indexOf(#endString)),
+
+#stringTest == "INTL.domain" ? 'INTL.domian.com\\' + #this.get('username') : #this.get('username')
+ 
+Parse out the userid from the subject in a cert: CN:
+I need it to parse out the userid from the subject in a cert: CN = 70034AJ3A4S.DQA8227@HCA.corpad.net
+#attr = #this.get("SubjectDN") !=null ? #this.get("SubjectDN").toString() : "",
+#begin = #attr.indexOf("=") + 1,
+#end = #attr.indexOf("@"),
+#attr != "" ? #attr.substring(#begin, #end).trim().split("\\.")[1] : ""
+So basically, we are parsing out everything between the "=" and the "@", then splitting it by the dot ".". This results in a string array, with the "70034AJ3A4S" as the first element, and "DQA8227" as the second element. I simply return the second element. I am also accounting for any null value passed. If so, this will simply return an empty string so you don't have to worry about NullPointerExceptions.
+ 
+
+Pull userId from SubjectDN:
+ 
+#attr = #this.get("SubjectDN") !=null ? #this.get("SubjectDN").toString() : "",
+#begin = #attr.indexOf("=") + 1,
+#end = #attr.indexOf("@"),
+#attr = #attr != "" ? #attr.substring(#begin, #end).trim() : "",
+#attr = #attr.matches(".*\\..*") ? #attr.split("\\.")[1] : #attr,
+#attr
+For example, a SubjectDN value of 70034AJ3A4S.DQA8227@HCA.corpad.net would return the "DQA8227" string. If the Subject DN is  DQA8227@HCA.corpad.net it would still return "DQA8227".
+ 
+Base64 decode of coreblox SM Session Cookie:
+Coreblox now returns the SMSession Cookie in the Attribute Contract base64 encoded.  Here is OGNL to decode:
+#token = #this.get("token") != null ? #this.get("token").toString() : "",
+#decoded = @org.apache.commons.codec.binary.Base64@decodeBase64(#token),
+#output = new java.lang.String(#decoded,"UTF-8"),
+#output
+ 
+Sending multi-value attributes to Pingone for UserGroup:
+ 
+I have 2 multi value attributes:
+ds.groupMembership
+ds.jnjEnterpriseAppAccess
+If one or both are populated, I want to send them as the "memberOf" attribute to PingOne for UserGroup decisions on what apps to display.
+But, if both are null, then I want to send simply:  ds.uid.
+ 
+#returnArray = new java.util.ArrayList(), 
+#groupOneGroups = #ds.groupMembership != null ? #this.get("ds.groupMembership").getValues() : {},
+#groupOneGroups. {
+  #workingGroup = #this,
+  #returnArray.add(#workingGroup)
+},
+#groupTwoGroups = #ds.jnjEnterpriseAppAccess != null ? #this.get("ds.jnjEnterpriseAppAccess").getValues() : {},
+#groupTwoGroups. {
+  #workingGroup = #this,
+  #returnArray.add(#workingGroup)
+},
+#returnArray.size() > 0 ? new org.sourceid.saml20.adapter.attribute.AttributeValue(#returnArray) : new org.sourceid.saml20.adapter.attribute.AttributeValue(#this.get("ds.uid"))
+ 
+Need to check multiple IPRanges for "Issuance Criteria":
+ 
+ Customer wanted to limit connection to only on premise (domain) usage.
+ 
+#address = #this.get("context.ClientIp").toString(),  
+#subnet = "161.179.0.0/16",  
+#utils = new org.apache.commons.net.util.SubnetUtils(#subnet),  
+#a = #utils.getInfo().isInRange(#address),  
+#subnet2 = "162.123.0.0/16",  #utils2 = new org.apache.commons.net.util.SubnetUtils(#subnet2), 
+#a2 = #utils2.getInfo().isInRange(#address),  
+#subnet3 = "10.0.0.0/8",  
+#utils3 = new org.apache.commons.net.util.SubnetUtils(#subnet3),  
+#a3 = #utils3.getInfo().isInRange(#address),  
+#subnet4 = "198.39.0.0/16",  
+#utils4 = new org.apache.commons.net.util.SubnetUtils(#subnet4),  
+#a4 = #utils4.getInfo().isInRange(#address),  
+#a || #a2 || #a3 || #a4
+ 
+ 
+
+OGNL Basics
+ 
+ 
+Check for "empty" on string field or Null:
+ 
+#INTL= #INTL.isEmpty() || null ? #user_INTL : #user_US
+ 
+Basic IF statement:
+	#guid1=#this.get("ds.GUID_1"), #guid1 == null ? ‘attr is null’ : #guid1
+	 
+	Notes - 
+	IF Expression = “#guid1 == null”
+	Then = “?”
+	Else = “:”
+ 
+Check for Null Expression and basic IF statement:
+	#guid1=#this.get("ds.GUID_1"),
+	#guid2=#this.get("ds.GUID_2"),
+	#guid1 == null ? #guid2 : #guid1
+	 
+	 
+Basic Concatenation
+	#userid='userid='+#this.get("ds.userID")
+	 
+	 
+Check for Group Membership, Return Boolean
+	Check for a single group:
+	#adminRole=#this.get("ds.memberOf"),
+	#adminRole == null ? "False" : #this.get("ds.memberOf").toString().contains("CN=Administrators,CN=Builtin,DC=ad,DC=compnay,DC=com")
+	 
+Check for 2 groups, using OR operator:
+	#adminRole=#this.get("ds.memberOf"),    
+	#adminRole == null ? "False" : #this.get("ds.memberOf").toString().contains("CN=Cryptographic Operators,CN=Builtin,DC=ad,DC=company,DC=com") || #this.get("ds.memberOf").toString().contains("CN=Backup Operators,CN=Builtin,DC=ad,DC=company,DC=com")
+ 
+Generate a pseudonym from an attribute returned from a datasource lookup
+ 
+new org.sourceid.saml20.service.impl.PseudonymServiceSha1Impl().getPseudonym(#this.get("ds.attr").toString(),"SPConnectionID",0)
+ 
+Pick DataStore that does not have a null value:
+ 
+There's an awesome enhancement we're making to the LDAP PCV next PF release (7.3 - end of January) that should make this a lot simpler.  You'll be able to return any number of attributes from the user's directory entry as part of the PCV extended contract - which will then be accessible via the HTML Form Adapter and Username Token Processor.
+ 
+This should dramatically reduce the amount of data source configuration customers need to tie into connections as well as result in better performance.
+ 
+See:  https://jira.corp.pingidentity.com/browse/PF-7960
+ 
+ 
+
+#temp=#this.get("ds.adeurotp.userPrincipalName")!=null?
+#this.get("ds.adeurotp.userPrincipalName").toString():
+#this.get("ds.adusactp.userPrincipalName")!=null?
+#this.get("ds.adusactp.userPrincipalName").toString():
+#this.get("ds.adlapatp.userPrincipalName")!=null?
+#this.get("ds.adlapatp.userPrincipalName").toString():
+#this.get("ds.admmmtp.userPrincipalName")!=null?
+#this.get("ds.admmmtp.userPrincipalName").toString():"ErrorConditionNull" (Expression) 
+ 
+ 
+ 
+ 
+ 
+ Issue a refresh token alongside an access token when leveraging the AccessTokenIssuer class
+ 
+This is gray area, and may break in new releases  There is a JIRA for feature request.
+https://jira.corp.pingidentity.com/browse/PAPQ-60
+ 
+ 
+#refreshTokenString = @org.sourceid.common.IDGenerator@rndAlphaNumeric(40), #client = new org.sourceid.oauth20.domain.Client(), client.setClientId("gBETR"), #accessGrant = new org.sourceid.oauth20.token.AccessGrant(#refreshTokenString, #this.get("SAML_SUBJECT"), new org.sourceid.oauth20.model.Scope(""), #client, "um:not:applicable:injected", null), @org.sourceid.saml20.domain.mgmt.MgmtFactory@getAccessGrantManager().saveGrant(#accessGrant), #refreshTokenString (Expression)
+ 
+OGNL to stop devices that do not have MDM installed
+#objReq = #this.get("context.HttpRequest").getObjectValue(),
+#log = @org.apache.commons.logging.LogFactory@getLog("com.pingidentity.ognl.logger"),
+#ip = #objReq.getHeader("x-ms-forwarded-client-ip"),
+#log.debug("------[ Office365 Authorization Rule Debugger Username Token]---"),
+#objReq = #this.get("context.HttpRequest").getObjectValue(),
+#headers = #objReq.getHeaderNames(),
+#headers.{ #hdr = #this, #log.debug(#hdr.toString() + " = " + #objReq.getHeader(#hdr.toString())) },
+ 
+#validInternalIPs = new java.util.ArrayList(),
+#validInternalIPs.add("155.58.36.121"),
+#validInternalIPs.add("147.206.5.55"),
+#validInternalIPs.add("147.206.55.1"),
+#validInternalIPs.add("147.206.99.1"),
+#validInternalIPs.add("24.248.12.194"),
+#validInternalIPs.add("67.216.172.100"),
+#mobileIronIPs = new java.util.ArrayList(),
+#mobileIronIPs.add("147.206.15.91"),
+#mobileIronIPs.add("147.206.15.92"),
+#mobileIronIPs.add("147.206.15.93"),
+#clientIPlist = #ip != null ? #ip : "MISSING_HEADER",
+#clientIP = #clientIPlist.toString().contains(",") ? #clientIPlist.toString().split(',')[0] : #clientIPlist,
+#internalIP = #objReq.getHeader("X-MS-Forwarded-Client-IP"),
+ 
+#low = 0,
+#high = 9,
+#ipArray = internalIP != null ? #internalIP.toString().split('\\.') : "0",
+#agent = #objReq.getHeader("X-MS-Client-User-Agent"),
+#app = #objReq.getHeader("X-MS-Client-Application"),
+#isInternalIp = #ipArray.length() <= 1 ? false : ((#ipArray[0] == 147 && #ipArray[1] == 206 && #ipArray[2] == 5 && #ipArray[3] >= #low && #ipArray[3] <= #high) ||(#clientIP in #validInternalIPs)),
+#isActiveSync = #app == "Microsoft.Exchange.ActiveSync",
+#isMobileIron = #clientIP in #mobileIronIPs,
+#isOutlook = #agent != null ? #agent.toLowerCase().contains("outlook") : "false",
+#userAgent = #objReq.getHeader("User-Agent"),
+#isLync = #userAgent != null ? #userAgent.toLowerCase().contains("app lync") : "false",
+#isLyncMobile = #userAgent != null ? #userAgent.toLowerCase().contains("lync mobile") : "false",
+#log.debug("isInternalIp: " + #isInternalIp),
+#log.debug("isMobileIron: " + #isMobileIron),
+#log.debug("isOutlook: " + #isOutlook),
+#log.debug("isActiveSync: " + #isActiveSync),
+#log.debug("isLync: " + #isLync),
+#log.debug("isLyncMobile: " + #isLyncMobile),
+#letIn = (#isInternalIp && !#isActiveSync) || (#isMobileIron && !#isOutlook) || (#isLync) || (#isLyncMobile), 
+#log.debug("result: " + letIn),
+#result = letIn
+ 
+New Examples:
+ 
+Look for userid that matches 3 - 4 (3 Alpha, and 4 Digits) using Regex:
+#this.get("ds.neustarldap.description").toString().matches("[a-zA-Z]{3}[0-9][0-9][0-9][0-9]")? #this.get("ds.neustarldap.description"):"ConnectGuest"
+ Get the last 4 of SSN, but might have extra Character at the end (Carriage Return).  So instead of getting last 4, getting 5 - 9:
+#begin =5, #end = 9, ret = @com.pingidentity.common.util.B64@decodeToString(#this.get("ds.neustarldap.description")), SSN = ret,  #this.get("ds.neustarldap.Subject DN") + SSN.toString().substring(#begin, #end).trim() 
+ Searching for certain Groups (for AWS), and only sending those groups, and reformatting it for AWS pattern:
+ 
+#arn = "arn:aws:iam::",
+#rle = "role/",
+#samlpvdr = ":saml-provider/neustar_idp",
+#roles = new java.util.ArrayList(),
+ @java.lang.System@out.println("========= ****** START ******** ==========="),
+@java.lang.System@out.println(" Start Processing"),
+@java.lang.System@out.println("  Get All the Roles from LDAP"),
+#memberof=#this.get("ds.neustarldap.description"),
+@java.lang.System@out.println("========= Memberof ==========="),
+      @java.lang.System@out.println(#memberof),
+      @java.lang.System@out.println("========= Memberof ==========="),
+        @java.lang.System@out.println("     "),
+        @java.lang.System@out.println(" Filter Groups using the RSAutils.jar, looking for AWS"), 
+#groups=@com.pingidentity.rsa.Utils@filterAttributes(#memberof,".*aws.*"),
+@java.lang.System@out.println("========= Groups ==========="),
+@java.lang.System@out.println(#groups),
+@java.lang.System@out.println("========= Groups ==========="),
+  @java.lang.System@out.println("        "),
+ 
+@java.lang.System@out.println("  Cylce thru and extract the Variables for first Variable "),
+#groups = #this.get("groups").getValues(). {
+  #attr = #this,
+  @java.lang.System@out.println("In Loop"),
+       @java.lang.System@out.println("========= ATTR ==========="),
+  @java.lang.System@out.println(#attr),
+         @java.lang.System@out.println("========= ATTR ==========="),
+ @java.lang.System@out.println("  Processing #attr from first - to -aws"),
+              @java.lang.System@out.println("========= Begin ==========="),
+        #begin = #attr.indexOf("-") +1,
+  @java.lang.System@out.println(#begin),
+         @java.lang.System@out.println("========= Begin ==========="),
+       @java.lang.System@out.println("========= Get begin and end ==========="),  
+        #end = #attr.indexOf("-aws"),
+        #attr = #attr != "" ? #attr.substring(#begin, #end).trim() : "",
+               @java.lang.System@out.println("========= ATTR-After Trim ==========="),
+  @java.lang.System@out.println(#attr),
+         @java.lang.System@out.println("========= ATTR-After Trim ==========="),
+        @java.lang.System@out.println("  End of processing for first Variable"),
+               @java.lang.System@out.println("========= Second Variable ==========="), 
+        @java.lang.System@out.println("  Begin Processing 2nd Variable from aws to end."),    
+    #attr2 = #this,
+      #begin2 = #attr2.indexOf("-aws")+1,
+ 
+        @java.lang.System@out.println("========= Loop TWO ==========="),
+        @java.lang.System@out.println(#begin2),
+        #end2 = #attr2.length(),
+          @java.lang.System@out.println(#end2),            
+ #attr2 = #attr2 != "" ? #attr2.substring(#begin2, #attr2.length()).trim() : "",
+        @java.lang.System@out.println("=========  ATTR2 After Trim ==========="),
+        @java.lang.System@out.println(#attr2),
+        @java.lang.System@out.println("========= ATTR2 after trim ==========="),
+        @java.lang.System@out.println("       "),
+      
+   @java.lang.System@out.println("  This is the expected output "),
+        #attr3 = #arn + #attr +"':" + #rle + #attr2 +"," + #arn + #attr + #samlpvdr,
+        @java.lang.System@out.println("============  ATTR3 ========="),
+        @java.lang.System@out.println(#attr3),
+        @java.lang.System@out.println("============  ATTR3 ========="),
+        @java.lang.System@out.println("     "),
+@java.lang.System@out.println("============  EO  Iterate ========="),
+ 
+  #roles.add(#attr3),
+        @java.lang.System@out.println("============  Roles ========="),
+@java.lang.System@out.println(#roles),
+        @java.lang.System@out.println("============  Roles =========")
+},
+@java.lang.System@out.println(". ======= Return of Roles that meet aws in the right format ======="),
+ @java.lang.System@out.println("========= **** END **** ==========="),
+#roles.size() > 0 ? new org.sourceid.saml20.adapter.attribute.AttributeValue(#roles) : "Fail"
+ 
+Multi_Value Attribute in assertion, from memberOf
+https://ping.force.com/Support/PingIdentityArticle?id=kA340000000GsDACA0
+ 
+Multi-Value Attribute in assertion, from 2 fields (email and extensionAtttribute3)
+ 
+#theCNValues = new java.util.ArrayList(), 
+    #theValues = new java.util.ArrayList(), 
+         @java.lang.System@out.println(" "), 
+         @java.lang.System@out.println("-----Parsing Multivalued memberOf Attribute-----"), 
+    #theValues.add(#this.get("ds.telephoneNumber").toString()), 
+    #theValues .add( #this.get("ds.mail").toString()),   
+         @java.lang.System@out.println("-----Iterate-----"),
+         @java.lang.System@out.println(#theValues), 
+    #i = 0, 
+    #theValues.
+    { 
+          @java.lang.System@out.println(#theValues[#i]), 
+    
+    #val = #theValues[#i],  
+    #newVal = #val,  
+    
+         @java.lang.System@out.println(#theValues + " => " + #newVal), 
+    
+    #theCNValues.add(#newVal), 
+    #i = #i + 1, 
+         @java.lang.System@out.println("-----EO  Iterate-----") 
+    },
+           
+    new org.sourceid.saml20.adapter.attribute.AttributeValue(#theCNValues)
+ 
+Credential Validator which one - OGNL
+#temp=#this.get("ds.AD1.mail")!=null?#this.get("ds.AD1.mail").toString():#this.get("ds.AD2.mail")!=null?#this.get("ds.AD2.mail").toString():"ErrorConditionNull" 
+#temp=#this.get("ds.AD1.mail")!=null?#this.get("ds.AD1.mail").toString():#this.get("ds.AD2.mail")!=null?#this.get("ds.AD2.mail").toString():"ErrorConditionNull" 
+ 
+Strip text (user\) in OGNL
+#this.get("attr3").toString().substring(#this.get("attr3").toString().indexOf("\\") + 1, #this.get("attr3").toString().length())
+ 
+Examples given to me by Brown-Forman:
+ 
+1) Gmail:  #endString="@", #this.get("ds.mail").toString().substring(0, #this.get("ds.mail").toString().indexOf(#endString))
+ 
+2) Safeguard:  new org.sourceid.saml20.adapter.attribute.AttributeValue(#this.get("ds.extensionAttribute11")!=null?#this.get("ds.extensionAttribute11").toString().split(",").{#this}:"SS_USER")
+ 
+3) Enwisen:  #result=#this.get("ds.employeeNumber").toString(),#len=#result.length(),#len eq 5 ? (#result="000"+#result) : (#result="0000"+#result)
+ 
+ 
+4) Adgistics:  #temp=#this.get("ds.division"), #temp=#temp==null?”none":#temp.toString()  
+ 
+Creating a jwt token to send to the target site.
+https://pingidentity.atlassian.net/wiki/pages/viewpage.action?pageId=62455814
+ 
+Issuance Criteria of the WS-Trust portion of the o365
+ 
+Yes, I've done similar use cases with OGNL in the Issuance Criteria of the WS-Trust portion of the o365 connection.  An example OGNL script that look at the "X-MS-Forwarded-Client-IP" header value and matches it to an array of subnets:
+ 
+#isInternal = @java.lang.Boolean@FALSE,
+#internalSubnets = new java.util.ArrayList(),
+#internalSubnets.add("209.112.51.132/32"),
+#internalSubnets.add("10.178.0.0/16"),
+#objReq=#this.get("context.HttpRequest").getObjectValue(),
+#clientIPlist = #objReq.getHeader("X-MS-Forwarded-Client-IP") != null ? #objReq.getHeader("X-MS-Forwarded-Client-IP") : #this.get("context.ClientIp").toString(),
+#clientIP = #clientIPlist.toString().contains(",") ? #clientIPlist.toString().split(',')[0] : #clientIPlist,
+#internalSubnets.{
+#checkSubnet = #this,
+#subnet = new org.apache.commons.net.util.SubnetUtils(#checkSubnet),
+#subnet.setInclusiveHostCount(true),
+#isInternal = #subnet.getInfo().isInRange(#clientIP) ? @java.lang.Boolean@TRUE : #isInternal
+},
+#result = #isInternal
+ 
+ 
+ 
+OGNL to get Oauth Scopes
+ 
+#scope = #this.get("context.OAuthScopes"),
+#scope != null && 
+#scope.getValuesAsCollection().size() > 0
+ 
+Choose attributes
+Returns either upn or the value for IDPlogin in multi valued attribute proxyAddresses based on domain of email address
+#upn = #this.get("userPrincipalName"),
+#myUserID = #upn,
+#this.get("mail")!=null?
+(
+    #email=#this.get("mail").toString(),
+    #emailLength=#email.length(),
+    #atSign="@",
+    #at=#email.indexOf(#atSign),
+    #at > 0?
+    (
+        #domain=#email.substring(#at+1,#emailLength),
+        #domain.matches("(?i)domain.com")?(#myUserID= #upn):
+        (
+            #addresses = #this.get("proxyAddresses") != null ? #this.get("proxyAddresses").getValues() : {},
+            #firstmatch = #addresses.{^ #this.toString().startsWith("IDPlogin:") },
+            #firstmatchstring = #firstmatch.toString(),
+            #separatorSign = ":",
+            #firstmatchLength=#firstmatchstring.length(),
+            #separator = #firstmatchstring.indexOf(#separatorSign ),
+            #separator > 0?
+            (
+                #idplogin = #firstmatchstring.substring(#separator+1,#firstmatchLength-1),
+                #myUserID = #idplogin 
+            ):(#myUserID= #upn)
+        )   
+    ):(#myUserID= #upn)
+):(#myUserID= #upn),
+new org.sourceid.saml20.adapter.attribute.AttributeValue(#myUserID)
+ 
+ 
+
+PINGID
+ 
+Prospect is asking for a PingID Policy that would Approve an authenticating device from a company office, but only within business hours.  
+ 
+#hours = new java.util.Date().getHours(), #day = new java.util.Date().getDay(), (#hours < 8 || #hours > 17) || #day > 5 ? "MFA" : "none"
+ 
+ 
+O365 Example showing stopping users off network not able to use Outlook and Lync clients
+ 
+log = @org.apache.commons.logging.LogFactory@getLog("com.pingidentity.ognl.logger"),
+#log.debug("------[ Office365 Authorization Rule Debugger Username Token Processor ]---"),
+#objReq = #this.get("context.HttpRequest").getObjectValue(),
+#headers = #objReq.getHeaderNames(),
+#headers.{ #hdr = #this, #log.debug(#hdr.toString() + " = " + #objReq.getHeader(#hdr.toString())) },
+#subnet1 = new org.apache.commons.net.util.SubnetUtils("206.219.192.0/18[206.219.192.0]"),
+#clientIPList = #objReq.getHeader("X-MS-Forwarded-Client-IP") != null ? #objReq.getHeader("X-MS-Forwarded-Client-IP") : "0.0.0.0, 0.0.0.0, 0.0.0.0",
+#clientIP = #clientIPList.toString().split(',')[0],
+#log.debug("Client IP:" + #clientIP),
+#ipv6 = #clientIP.indexOf(":"),
+#clientIP = (#ipv6 == -1) ? #clientIP : "70.211.152.105",
+#subnet1 = new org.apache.commons.net.util.SubnetUtils("206.219.192.0/18[206.219.192.0]"),
+#Internal = ((#subnet1.getInfo().isInRange(#clientIP)) || (#clientIP == "208.251.194.230") || (#clientIP == "0.0.0.0")) && ((#clientIP != "206.219.255.134") && (#clientIP != "206.219.248.13")) ? true : false,
+#upn = #this.get("ds.ParsonsInt.userPrincipalName").toString(),
+#msApplication = #objReq.getHeader("X-MS-Client-Application") != null ? #objReq.getHeader("X-MS-Client-Application") : "Null",
+#msUserAgent = #objReq.getHeader("X-MS-Client-User-Agent") != null ? #objReq.getHeader("X-MS-Client-User-Agent") : "Null",
+#msApp = #msApplication.toString(),
+#UserAgent = #objReq.getHeader("User-Agent") != null ? #objReq.getHeader("User-Agent") : "Null",
+#Lync = (#UserAgent.toString().matches(".*lync.exe.*")) || (#msUserAgent.toString().matches(".*Microsoft Lync.*")) ? true: false,
+#log.debug("Lync Testing"),
+#log.debug("Lync:" + #Lync),
+#Outlook = (#msApp == "Microsoft.Exchange.OfflineAddressBook") || (#msApp == "Microsoft.Exchange.Mapi") || (#msApp == "Microsoft.Exchange.WebServices") || (#msApp == "Microsoft.Exchange.Autodiscover") || (#msApp == "Microsoft.Exchange.RPC")? true : false,
+#testuser = (#upn == "test@co.com") || (#upn == "test2@co.com") || (#upn == "test3") || (#upn == "test4 ? true : false,
+#result = true,
+#resulttemp = true,
+#resulttemp = (#Internal == false && #Outlook == true) ? false : #resulttemp,
+#resulttemp = (#Internal == false && #Outlook == true) ? false : #resulttemp,
+#resulttemp = (#testuser == true && #Lync == true) ? true : #resulttemp,
+#log.debug("User:" + #upn + " ClientIP:" + #clientIP + " Application: " + #msApp + " UserAgent:" + #msUserAgent + " Connection allowed:" + #resulttemp),
+#log.debug("------[ Office365 Authorization Rule Debugger ]---"),
+#result = #resulttemp
