@@ -1,0 +1,55 @@
+OGNL Expressions Assignment
+This purpose of this exercise is to review and work on OGNL Expression with PingFederate.
+Review the following OGNL expression blog by John DaSilva, (https://www.pingidentity.com/content/dam/developer/downloads/Resources/OGNL%20Series%2009192014.pdf). This blog should help you understand the basics of OGNL expression and how they work in relation to PingFederate.
+Task 1 –Write an OGNL expression that creates an email address from a firstName, lastName, and domain values.
+I would start by asking the customer for some example assertion values, to ensure no confusion. For this case I’ll make the following assumptions.
+Assertion values:
+firstName = “John”
+-
+lastName = “Doe”
+-
+domain = “domain.com”
+-
+Desired output:
+JohnDoe@domain.com
+-
+OGNL Expression: 
+#fn = #this.get("firstName").getValue(),
+#sn = #this.get("lastName").getValue(),
+#dn = #this.get("domain").getValue(),
+#fn+#sn+"@"+#dn
+OGNL Expression:
+I’ve highlighted the line that you can modify to change whatever group value you wish to append. I know that you can also streamline this further but this is at least functional.
+Task 2 --Write an OGNL expression which appends the “All Users” groups to a user’s memberOf in a SAML attributes within an assertion.
+#groupOutputArray= new java.util.ArrayList(),
+#groupInputArray = #this.get("ds.LDAP.memberOf")!=null ? #this.get("ds.LDAP.memberOf").getValues() : {},
+#i= 0,
+#groupInputArray.{#group = new javax.naming.ldap.LdapName(#groupInputArray[#i]),
+#groupName = #group.toString(),
+#groupOutputArray.add(#groupName),
+#i = #i + 1},
+#groupOutputArray.add("CN=All_Users,CN=Users,DC=DCMCD,DC=local"),
+#this.get("ds.LDAP.memberOf")!=null? new org.sourceid.saml20.adapter.attribute.AttributeValue(#groupOutputArray) : null
+
+Task 3 –Write and OGNL expression which checks if the email address, from any data store, is null or empty. If the email address value is null or empty, then return “No email address”.
+#value = #this.get("ds.LDAP.mail"),
+#value == null ? "No Email Address" : #value
+OGNL Expression:
+(Optional) –Create issuance criteria using an OGNL expression, which checks the User-Agent header. The criteria will prevent all users who are using Internet Explorer or Android devices from access a SAML application.
+Mixed results with testing:
+OGNL Expression:
+#this.get("context.HttpRequest").getObjectValue().getHeader("User-Agent").equals("Android")
+Will require further testing to refine. So far every request is triggering the issuance criteria, but I feel like this is close. I’m running out of time so I wanted to send you what I have even though it’s not perfect yet
+To configure your global admin group, log back into the PingOne portal and click Setup --> Dock.
+In the "Global Administrator Group" put the full DN of the group that contains your global PingOne globaladmins.
+Then go back to PingFederate and open the PingOneAgentDock connection. Under Browser SSO --> Assertion Creation --> Authentcation Source Mapping click your policy contract. Then go to the Attribute Contract Fulfillment tab. Once there, modify the existing OGNL expression how we discussed.
+Here's a copy from my lab for you to reference:
+Original OGNL for single group:
+#this.get("ds.ADSource.memberOf").toString().replaceAll("\\[|\\]","").split(",\\s"). {?matches("CN=Global_Admin_Group.*")}
+Updated OGNL for multiple groups:
+#this.get("ds.ADSource.memberOf").toString().replaceAll("\\[|\\]","").split(",\\s"). {?matches("CN=Global_Admin_Group.*|CN=Service_Admin_Group.*")}
+Environmental variables are highlighted, and the addition is specifically in yellow.
+Pulling first part of email before the @ sign and limiting to 30 characters.
+#val = #this.get("mail").toString().split("@")[0], #val.length() > 30 ? #val.substring(0,30):#val
+Pulling an user name from one directory or another.
+#userid = #this.get("sAMAccountName") , (#userid && !#userid.toString().isEmpty()) ? #userid : #this.get("uid")
