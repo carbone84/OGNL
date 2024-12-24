@@ -1,0 +1,4 @@
+#CTS = new java.util.Date().getTime(), 
+#sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"),
+#LASTSEEN = sdf.parse(#this.get("ad.ARTHTMLLOGINPAGE.LastSeenDevice")).getTime(), 
+#diff = (#CTS - #LASTSEEN), #diff > 900000 ? true : false
